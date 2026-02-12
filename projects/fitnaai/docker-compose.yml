@@ -1,0 +1,59 @@
+# fitnaai — Docker Compose
+# Runs on Host 2 (192.168.16.3) or pve-ryzen (192.168.17.1)
+#
+# Usage:
+#   docker compose up -d
+#   docker compose logs -f fitnaai
+
+services:
+  fitnaai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fitnaai
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - FITNAAI_DEBUG=false
+      - FITNAAI_OLLAMA_BASE_URL=http://ollama:11434
+      - FITNAAI_OLLAMA_MODEL=llama3.2
+    volumes:
+      - fitnaai-data:/data
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - fitnaai-net
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - fitnaai-net
+
+volumes:
+  fitnaai-data:
+  ollama-models:
+
+networks:
+  fitnaai-net:
+    driver: bridge
