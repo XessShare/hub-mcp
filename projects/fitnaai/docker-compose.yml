@@ -1,5 +1,5 @@
 # fitnaai — Docker Compose
-# Target: pve-ryzen (192.168.17.1) with GTX 1080
+# Target: pve GamingPC (192.168.16.2) — CPU-only inference
 #
 # Production:
 #   docker compose up -d
@@ -7,6 +7,9 @@
 #
 # Development (with hot-reload):
 #   docker compose --profile dev up
+#
+# NOTE: Ollama runs CPU-only on this host (RX 6800 XT = AMD, no CUDA).
+# GPU inference available when migrated to pve-ryzen (GTX 1080, Phase 9).
 
 services:
   fitnaai:
@@ -14,13 +17,12 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: fitnaai
-    restart: unless-stopped
+    restart: always
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+    env_file: .env
     environment:
-      - FITNAAI_DEBUG=false
       - FITNAAI_OLLAMA_BASE_URL=http://ollama:11434
-      - FITNAAI_OLLAMA_MODEL=llama3.2
     volumes:
       - fitnaai-data:/data
     depends_on:
@@ -34,6 +36,10 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
 
   # Development override: mounts source for hot-reload
   fitnaai-dev:
@@ -61,18 +67,20 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
-    restart: unless-stopped
+    restart: always
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama-models:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    # NO GPU reservation — CPU-only on 192.168.16.2 (AMD RX 6800 XT, no CUDA)
+    # When migrating to pve-ryzen (GTX 1080), uncomment:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 30s
@@ -81,6 +89,10 @@ services:
       start_period: 30s
     networks:
       - fitnaai-net
+    deploy:
+      resources:
+        limits:
+          memory: 8G
 
 volumes:
   fitnaai-data:

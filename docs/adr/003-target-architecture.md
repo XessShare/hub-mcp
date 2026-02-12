@@ -1,78 +1,99 @@
-# ADR-003: Recommended Target Architecture
+# ADR-003: Final Production Architecture
 
-**Status:** Proposed (pending blocker resolution, see ADR-002)
+**Status:** Accepted
 **Date:** 2026-02-12
 **Decision makers:** Projektleitung
 
-## Context
-
-Based on the known hardware and the API-first decision (ADR-001), this is the recommended production architecture once blockers are resolved.
-
-## Proposed Architecture
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  pve (192.168.16.2) — Workstation Node                   │
-│  GPU: RX 6800 XT (16GB VRAM)                            │
+┌─────────────────────── INTERNET ───────────────────────┐
 │                                                         │
 │  ┌─────────────────────────────────────────────────┐    │
-│  │ VM 100: win11-workstation                        │    │
-│  │ Purpose: Windows Desktop, Business, Dev          │    │
-│  │ GPU: RX 6800 XT (passthrough)                    │    │
-│  │ Access: RDP from ThinkPad                        │    │
-│  └─────────────────────────────────────────────────┘    │
+│  │  Hetzner VPS (Public Entry Point)                │    │
+│  │  Role: Reverse Proxy + TLS Termination           │    │
+│  │                                                  │    │
+│  │  Nginx → https://api.fitnaai.de                  │    │
+│  │  Let's Encrypt TLS                               │    │
+│  │  WireGuard Client → 10.0.0.1                     │    │
+│  │                                                  │    │
+│  │  proxy_pass → http://10.0.0.2:8000               │    │
+│  └──────────────────────┬──────────────────────────┘    │
+│                         │ WireGuard Tunnel               │
+└─────────────────────────┼───────────────────────────────┘
+                          │
+┌─────────────────────────┼───────────────────────────────┐
+│  LAN: 192.168.16.0/24  │                                │
+│                         │                                │
+│  ┌──────────────────────┴──────────────────────────┐    │
+│  │  pve — GamingPC (192.168.16.2)                   │    │
+│  │  PRODUCTION HOST                                 │    │
+│  │  GPU: RX 6800 XT (16GB) — not used by Ollama     │    │
+│  │  WireGuard Server → 10.0.0.2                     │    │
+│  │                                                  │    │
+│  │  ┌──────────────────────────────────────────┐    │    │
+│  │  │ Docker (host network / bridge)            │    │    │
+│  │  │  ├── fitnaai API         :8000            │    │    │
+│  │  │  └── ollama (CPU-only)   :11434           │    │    │
+│  │  └──────────────────────────────────────────┘    │    │
+│  │                                                  │    │
+│  │  ┌──────────────────────────────────────────┐    │    │
+│  │  │ VM 100: win11-workstation                 │    │    │
+│  │  │ GPU: RX 6800 XT (passthrough)             │    │    │
+│  │  │ Access: RDP                               │    │    │
+│  │  └──────────────────────────────────────────┘    │    │
+│  └──────────────────────────────────────────────────┘    │
 │                                                         │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │ VM 200: linux-desktop (optional)                 │    │
-│  │ Purpose: Linux GUI, Samba file server            │    │
-│  │ Display: SPICE                                   │    │
-│  │ Access: SPICE from ThinkPad                      │    │
-│  └─────────────────────────────────────────────────┘    │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │  pve — ThinkPad (192.168.16.7)                    │    │
+│  │  DEV / TEST NODE                                  │    │
+│  │  No GPU, no prod traffic                          │    │
+│  │  Use: staging, testing, admin client               │    │
+│  └──────────────────────────────────────────────────┘    │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │  ThinkPad Admin (192.168.16.10)                   │    │
+│  │  CLIENT                                           │    │
+│  │  ssh, xfreerdp, curl, browser                     │    │
+│  └──────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
-│  pve-ryzen (192.168.17.1) — Compute / Services Node     │
-│  GPU: GTX 1080 (8GB VRAM)                               │
+│  Subnet 192.168.17.0/24 — Ryzen (standby)               │
 │                                                         │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │ CT/VM: debian-docker                             │    │
-│  │ Services:                                        │    │
-│  │   ├── fitnaai API        :8000                   │    │
-│  │   ├── ollama             :11434 (GPU)            │    │
-│  │   ├── (future services)                          │    │
-│  │   └── monitoring stack                           │    │
-│  │ Orchestration: docker compose                    │    │
-│  │ Restart policy: unless-stopped                   │    │
-│  └─────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│  pve (192.168.16.7) — Backup / Cluster Node (TBD)       │
-│  Role: pending BLOCKER-1 resolution                      │
-│  Options:                                               │
-│    A) Third cluster node (quorum)                       │
-│    B) Backup target (vzdump, replication)               │
-│    C) Dev/staging environment                           │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│  ThinkPad (192.168.16.10) — Admin Client                 │
-│  Access: RDP → Windows VM, SPICE → Linux VM             │
-│  Tools: ssh, xfreerdp, virt-viewer, curl                │
-│  Routes: 192.168.20.0/24 via 192.168.16.2              │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │  pve-ryzen (192.168.17.1) — 1 NIC                 │    │
+│  │  GPU: GTX 1080 (8GB, CUDA-capable)                │    │
+│  │  Role: STANDBY / FUTURE COMPUTE                    │    │
+│  │  Scaling: Migrate fitnaai+ollama here when ready   │    │
+│  │           Then GPU inference becomes available      │    │
+│  └──────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────┘
 ```
 
-## Key Principles
+## Key Decisions
 
-1. **Separation of concerns**: Workstation node (16.2) never runs 24/7 services
-2. **GPU dedication**: RX 6800 XT for interactive work, GTX 1080 for inference
-3. **Docker-first services**: All services on pve-ryzen, managed via compose
-4. **No single point of failure**: Backups on separate node (16.7 if available)
+1. **192.168.16.2 = Production Host**: Docker + fitnaai + Ollama (CPU-only)
+2. **RX 6800 XT NOT used by Ollama**: AMD GPU, no CUDA. GPU dedicated to Windows VM passthrough.
+3. **Public access via Hetzner VPS only**: WireGuard tunnel, nginx reverse proxy, TLS
+4. **192.168.16.7 = Dev/Test only**: ThinkPad PVE node, no production role
+5. **pve-ryzen = Standby**: Future compute node. When fitnaai migrates here, GPU inference (CUDA) becomes available.
+
+## Risk Register
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| 16.2 runs Proxmox + Windows VM + Docker Prod | Single point of failure | Systemd restart, vzdump backups, scaling path to ryzen |
+| Ollama CPU-only on 16.2 | Slow inference for large models | Use small models (llama3.2 7B), scale to ryzen+GTX1080 later |
+| 1 NIC on ryzen | No network redundancy | Acceptable for non-prod standby role |
+| Windows VM + Docker on same host | Resource contention | Pin CPU cores, memory limits in compose |
 
 ## Scaling Path
 
-- **Phase 6**: fitnaai production deployment on pve-ryzen
-- **Phase 7**: Monitoring (Prometheus + Grafana on pve-ryzen)
-- **Phase 8**: Public API exposure (reverse proxy + TLS, requires VPS or Cloudflare Tunnel)
-- **Phase 9**: Cluster formation (if 16.7 confirmed as PVE node)
+| Phase | Action | Trigger |
+|-------|--------|---------|
+| 6 | fitnaai prod deployment on 16.2 | Now |
+| 7 | Hetzner VPS + WireGuard + nginx | After Phase 6 stable |
+| 8 | Monitoring (Prometheus + Grafana) | After Phase 7 |
+| 9 | Migrate fitnaai to ryzen (GPU inference) | When ryzen is production-ready |
+| 10 | Cluster formation (16.2 + ryzen + 16.7) | When 3-node quorum justified |

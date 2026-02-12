@@ -15,3 +15,7 @@ gordon-mcp.yml
 proxmox/secrets/
 *.pem
 *.key
+
+# WireGuard secrets (generated on hosts, never committed)
+proxmox/wireguard/*.key
+proxmox/wireguard/vps-client.conf
