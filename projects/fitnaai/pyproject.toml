@@ -46,9 +46,8 @@ gpu = [
     "transformers>=4.46.0",
     "accelerate>=1.1.0",
 ]
-bot = [
-    "python-telegram-bot>=21.7",
-]
+# Bot adapters are out of scope for Phase 1 (API-first decision).
+# See docs/adr/001-api-first.md
 
 [project.scripts]
 fitnaai = "fitnaai.cli:main"

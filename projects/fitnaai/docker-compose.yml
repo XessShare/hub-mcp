@@ -1,9 +1,12 @@
 # fitnaai — Docker Compose
-# Runs on Host 2 (192.168.16.3) or pve-ryzen (192.168.17.1)
+# Target: pve-ryzen (192.168.17.1) with GTX 1080
 #
-# Usage:
+# Production:
 #   docker compose up -d
 #   docker compose logs -f fitnaai
+#
+# Development (with hot-reload):
+#   docker compose --profile dev up
 
 services:
   fitnaai:
@@ -25,6 +28,35 @@ services:
         condition: service_healthy
     networks:
       - fitnaai-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Development override: mounts source for hot-reload
+  fitnaai-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fitnaai-dev
+    profiles: ["dev"]
+    ports:
+      - "8000:8000"
+    environment:
+      - FITNAAI_DEBUG=true
+      - FITNAAI_OLLAMA_BASE_URL=http://ollama:11434
+      - FITNAAI_OLLAMA_MODEL=llama3.2
+    volumes:
+      - ./src:/app/src
+      - fitnaai-data:/data
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - fitnaai-net
+    command: ["uvicorn", "fitnaai.server:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   ollama:
     image: ollama/ollama:latest
