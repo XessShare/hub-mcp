@@ -1,0 +1,95 @@
+# =============================================================================
+# fitna-backup.yml — Docker Compose stack for automated FitnaAI backups
+#
+# Mounts the host fitna data directory into the container and runs
+# the backup script on a daily cron schedule.
+#
+# Host paths (adjust to your environment):
+#   Data:    /mnt/data/fitnaai/home/fitna
+#   Backups: /mnt/data/backups/fitnaai
+#   Scripts: ./scripts (relative to project root)
+#
+# Usage:
+#   docker compose -f docker/stacks/fitna-backup.yml up -d
+#   docker compose -f docker/stacks/fitna-backup.yml logs -f
+#
+# Test backup manually:
+#   docker compose -f docker/stacks/fitna-backup.yml exec backup \
+#     /app/scripts/backup-fitna.sh
+# =============================================================================
+
+services:
+  backup:
+    image: alpine:3.20
+    container_name: fitna-backup
+    restart: unless-stopped
+
+    # Override HOME so the script resolves SOURCE_DIR correctly
+    environment:
+      - SOURCE_DIR=/app/fitna
+      - BACKUP_DIR=/backups
+      - LOG_DIR=/app/logs
+      - RETENTION_DAYS=30
+      - TZ=Europe/Berlin
+
+    volumes:
+      # Data directory (read-only — backup never writes to source)
+      - /mnt/data/fitnaai/home/fitna:/app/fitna:ro
+      # Backup output directory
+      - /mnt/data/backups/fitnaai:/backups
+      # Mount the scripts directory
+      - ../../scripts:/app/scripts:ro
+      # Persistent logs
+      - backup-logs:/app/logs
+
+    # Install bash + cron, write crontab, run crond in foreground
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        apk add --no-cache bash tar findutils
+        echo "=== FitnaAI Backup Container started ==="
+
+        # Verify data mount
+        if [ -d /app/fitna ]; then
+          echo "OK: /app/fitna is mounted ($(ls -1 /app/fitna | wc -l) entries)"
+        else
+          echo "ERROR: /app/fitna is NOT mounted" >&2
+          exit 1
+        fi
+
+        # Verify backup directory
+        if [ -w /backups ]; then
+          echo "OK: /backups is writable"
+        else
+          echo "ERROR: /backups is NOT writable" >&2
+          exit 1
+        fi
+
+        # Set up daily cron at 02:00
+        mkdir -p /etc/cron.d
+        echo "0 2 * * * /bin/bash /app/scripts/backup-fitna.sh >> /app/logs/cron.log 2>&1" \
+          > /etc/cron.d/fitna-backup
+        chmod 0644 /etc/cron.d/fitna-backup
+        crontab /etc/cron.d/fitna-backup
+
+        echo "Cron scheduled: daily at 02:00 Europe/Berlin"
+        echo "Run manual backup:  docker exec fitna-backup bash /app/scripts/backup-fitna.sh"
+
+        # Run crond in foreground
+        crond -f -l 2
+
+    # Resource limits — backup is lightweight
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+    # Non-root: Alpine crond needs root, but the backup script itself
+    # operates only on mounted volumes with appropriate permissions.
+    # For fully rootless operation, switch to a supercronic-based image.
+
+volumes:
+  backup-logs:
+    driver: local

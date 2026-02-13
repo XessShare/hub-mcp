@@ -1,0 +1,36 @@
+# =============================================================================
+# fitna-backup.service — systemd unit for FitnaAI backup
+#
+# Install:
+#   sudo cp scripts/fitna-backup.service /etc/systemd/system/
+#   sudo cp scripts/fitna-backup.timer   /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now fitna-backup.timer
+#
+# Manual run:
+#   sudo systemctl start fitna-backup.service
+#
+# Check status:
+#   systemctl status fitna-backup.timer
+#   journalctl -u fitna-backup.service
+# =============================================================================
+[Unit]
+Description=FitnaAI daily backup
+After=network.target local-fs.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/fitnaai
+ExecStart=/opt/fitnaai/scripts/backup-fitna.sh
+StandardOutput=journal
+StandardError=journal
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/mnt/data/backups/fitnaai /opt/fitnaai/logs
+ReadOnlyPaths=/mnt/data/fitnaai/home/fitna
+
+[Install]
+WantedBy=multi-user.target

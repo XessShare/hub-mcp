@@ -1,0 +1,21 @@
+# =============================================================================
+# fitna-backup.timer — systemd timer for daily FitnaAI backups at 02:00
+#
+# Install:
+#   sudo cp scripts/fitna-backup.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now fitna-backup.timer
+#
+# Check next run:
+#   systemctl list-timers fitna-backup.timer
+# =============================================================================
+[Unit]
+Description=Run FitnaAI backup daily at 02:00
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
