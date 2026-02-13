@@ -1,0 +1,248 @@
+# JBOT Production Stack — Proxmox LXC (AMD RX 6800 XT, ROCm 6.x)
+# Deploy: docker compose up -d
+# Logs:   docker compose logs -f
+
+networks:
+  proxy:
+    name: jbot_proxy
+    driver: bridge
+  backend:
+    name: jbot_backend
+    driver: bridge
+    internal: true
+  socket:
+    name: jbot_socket
+    driver: bridge
+    internal: true
+
+volumes:
+  ollama-models:
+    driver: local
+  qdrant-data:
+    driver: local
+  qdrant-snapshots:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  traefik-acme:
+    driver: local
+
+services:
+  # ─────────────────────────────────────────────────────────────
+  # Docker Socket Proxy (Security Layer)
+  # ─────────────────────────────────────────────────────────────
+  dockersocket:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: jbot_dockersocket
+    restart: unless-stopped
+    networks:
+      - socket
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      LOG_LEVEL: info
+      CONTAINERS: 1
+      NETWORKS: 1
+      SERVICES: 0
+      TASKS: 0
+      NODES: 0
+      SWARM: 0
+      VOLUMES: 0
+      IMAGES: 0
+      PLUGINS: 0
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2375/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ─────────────────────────────────────────────────────────────
+  # Traefik v3 (Reverse Proxy + TLS)
+  # ─────────────────────────────────────────────────────────────
+  traefik:
+    image: traefik:v3.0
+    container_name: jbot_traefik
+    restart: unless-stopped
+    networks:
+      - proxy
+      - socket
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8081:8081"
+    volumes:
+      - traefik-acme:/acme
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+    environment:
+      DOCKER_HOST: tcp://dockersocket:2375
+    command:
+      - --api.dashboard=true
+      - --api.insecure=false
+      - --log.level=INFO
+      - --accesslog=true
+      - --providers.docker=true
+      - --providers.docker.endpoint=tcp://dockersocket:2375
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=jbot_proxy
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.internal.address=:8081
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@yourdomain.com}
+      - --certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.internal.local`)"
+      - "traefik.http.routers.dashboard.entrypoints=internal"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.middlewares=internal-ip-whitelist@file"
+    depends_on:
+      dockersocket:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────────────────────────
+  # Ollama (AMD ROCm optimized)
+  # ─────────────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:rocm
+    container_name: jbot_ollama
+    restart: unless-stopped
+    networks:
+      - backend
+      - proxy
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/kfd:/dev/kfd
+    group_add:
+      - video
+      - render
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      OLLAMA_MODELS: /root/.ollama/models
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_GPU_DRIVER: rocm
+      HSA_OVERRIDE_GFX_VERSION: "10.3.0"
+      ROC_ENABLE_PRE_VEGA: "1"
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_KV_CACHE_TYPE: "q8_0"
+      OLLAMA_MAX_LOADED_MODELS: "2"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ollama.rule=Host(`ollama.internal.local`)"
+      - "traefik.http.routers.ollama.entrypoints=internal"
+      - "traefik.http.routers.ollama.middlewares=internal-ip-whitelist@file"
+      - "traefik.http.services.ollama.loadbalancer.server.port=11434"
+
+  # ─────────────────────────────────────────────────────────────
+  # Qdrant (Vector Database)
+  # ─────────────────────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: jbot_qdrant
+    restart: unless-stopped
+    networks:
+      - backend
+      - proxy
+    volumes:
+      - qdrant-data:/qdrant/storage
+      - qdrant-snapshots:/qdrant/snapshots
+      - ./qdrant/config.yaml:/qdrant/config/production.yaml:ro
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__STORAGE__STORAGE_PATH: /qdrant/storage
+      QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant/snapshots
+      QDRANT__CLUSTER__ENABLED: "false"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/collections"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.qdrant.rule=Host(`qdrant.internal.local`)"
+      - "traefik.http.routers.qdrant.entrypoints=internal"
+      - "traefik.http.routers.qdrant.middlewares=internal-ip-whitelist@file"
+      - "traefik.http.services.qdrant.loadbalancer.server.port=6333"
+
+  # ─────────────────────────────────────────────────────────────
+  # PostgreSQL 16 (Primary Database)
+  # ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: jbot_postgres
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: jbot
+      POSTGRES_USER: jbot
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-changeme_insecure}"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jbot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────
+  # Redis 7 (Cache + Task Queue)
+  # ─────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: jbot_redis
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ─────────────────────────────────────────────────────────────
+  # JBOT API (FastAPI, internal only)
+  # ─────────────────────────────────────────────────────────────
+  jbot-api:
+    image: ${JBOT_API_IMAGE:-yourorg/jbot-api:latest}
+    container_name: jbot_api
+    restart: unless-stopped
+    networks:
+      - backend
+      - proxy
+    environment:
+      DATABASE_URL: "postgresql://jbot:${POSTGRES_PASSWORD:-changeme_insecure}@postgres:5432/jbot"
+      REDIS_URL: "redis://redis:6379/0"
+      OLLAMA_BASE_URL: "http://ollama:11434"
+      QDRANT_URL: "http://qdrant:6333"
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jbot-api.rule=Host(`jbot.internal.local`)"
+      - "traefik.http.routers.jbot-api.entrypoints=internal"
+      - "traefik.http.routers.jbot-api.middlewares=internal-ip-whitelist@file"
+      - "traefik.http.services.jbot-api.loadbalancer.server.port=8000"

@@ -1,0 +1,40 @@
+# Traefik v3 Dynamic Config — Middleware & Security
+http:
+  middlewares:
+    # IP Whitelist for internal services
+    internal-ip-whitelist:
+      ipWhiteList:
+        sourceRange:
+          - "192.168.16.0/24"   # Dev segment
+          - "192.168.17.0/24"   # Prod segment
+          - "10.0.0.0/8"        # WireGuard VPN (optional)
+
+    # Authentik ForwardAuth (for external dashboards)
+    authentik:
+      forwardAuth:
+        address: "https://auth.yourdomain.com/outpost.goauthentik.io/auth/traefik"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - "X-authentik-username"
+          - "X-authentik-groups"
+          - "X-authentik-email"
+
+    # Security Headers
+    secure-headers:
+      headers:
+        sslRedirect: true
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        frameDeny: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+
+    # Rate Limiting
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 50
+        period: 1s

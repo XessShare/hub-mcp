@@ -1,0 +1,32 @@
+# Qdrant Production Configuration
+# Mount: ./qdrant/config.yaml:/qdrant/config/production.yaml:ro
+
+storage:
+  storage_path: "/qdrant/storage"
+  snapshots_path: "/qdrant/snapshots"
+  on_disk_payload: true
+
+cluster:
+  enabled: false
+
+service:
+  http_port: 6333
+  grpc_port: 6334
+  max_request_size_mb: 32
+  enable_cors: false
+
+optimizers:
+  # More segments for better update performance
+  default_segment_number: 8
+
+  # Start indexing at 50k vectors per segment
+  indexing_threshold: 50000
+
+  # Vacuum after 20% deleted points
+  deleted_threshold: 0.2
+
+  # Flush interval
+  flush_interval_sec: 10
+
+telemetry:
+  enabled: false
