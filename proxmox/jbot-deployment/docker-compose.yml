@@ -189,7 +189,7 @@ services:
     environment:
       POSTGRES_DB: jbot
       POSTGRES_USER: jbot
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-changeme_insecure}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
       PGDATA: /var/lib/postgresql/data/pgdata
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U jbot"]
@@ -226,7 +226,7 @@ services:
       - backend
       - proxy
     environment:
-      DATABASE_URL: "postgresql://jbot:${POSTGRES_PASSWORD:-changeme_insecure}@postgres:5432/jbot"
+      DATABASE_URL: "postgresql://jbot:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/jbot"
       REDIS_URL: "redis://redis:6379/0"
       OLLAMA_BASE_URL: "http://ollama:11434"
       QDRANT_URL: "http://qdrant:6333"

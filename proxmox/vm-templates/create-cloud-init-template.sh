@@ -2,7 +2,7 @@
 # create-cloud-init-template.sh — Download a cloud image and create a
 # Cloud-Init-enabled VM template on Proxmox VE.
 #
-# Usage: sudo bash create-cloud-init-template.sh [VMID] [TEMPLATE_NAME] [IMAGE_URL]
+# Usage: sudo bash create-cloud-init-template.sh [VMID] [TEMPLATE_NAME] [IMAGE_URL] [CI_PASSWORD]
 #
 # Defaults to Ubuntu 22.04 (Jammy) cloud image.
 
@@ -11,6 +11,16 @@ set -euo pipefail
 VMID="${1:-9000}"
 TEMPLATE_NAME="${2:-ubuntu-2204-cloud}"
 IMAGE_URL="${3:-https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img}"
+CI_PASSWORD="${4:-}"
+
+if [[ -z "$CI_PASSWORD" ]]; then
+    read -rsp "Enter Cloud-Init password for 'admin' user: " CI_PASSWORD
+    echo
+    if [[ -z "$CI_PASSWORD" ]]; then
+        echo "ERROR: Password cannot be empty." >&2
+        exit 1
+    fi
+fi
 STORAGE="local-lvm"
 BRIDGE="vmbr0"
 IMAGE_FILE="/tmp/cloud-image-$(basename "$IMAGE_URL")"
@@ -64,7 +74,7 @@ qm set "$VMID" --serial0 socket --vga serial0
 # Set default Cloud-Init settings
 qm set "$VMID" \
     --ciuser admin \
-    --cipassword "changeme" \
+    --cipassword "$CI_PASSWORD" \
     --ipconfig0 ip=dhcp
 
 echo "    Resizing disk to 32G..."

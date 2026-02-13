@@ -4,13 +4,23 @@
 # Creates a lightweight Linux Desktop VM accessible via SPICE from the
 # ThinkPad (192.168.16.10) or any machine on the network.
 #
-# Usage: sudo bash create-linux-desktop-vm.sh [VMID] [VM_NAME] [CLOUD_IMG_URL]
+# Usage: sudo bash create-linux-desktop-vm.sh [VMID] [VM_NAME] [CLOUD_IMG_URL] [CI_PASSWORD]
 
 set -euo pipefail
 
 VMID="${1:-200}"
 VM_NAME="${2:-linux-desktop}"
 IMAGE_URL="${3:-https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img}"
+CI_PASSWORD="${4:-}"
+
+if [[ -z "$CI_PASSWORD" ]]; then
+    read -rsp "Enter Cloud-Init password for 'admin' user: " CI_PASSWORD
+    echo
+    if [[ -z "$CI_PASSWORD" ]]; then
+        echo "ERROR: Password cannot be empty." >&2
+        exit 1
+    fi
+fi
 STORAGE="local-lvm"
 BRIDGE="vmbr1"
 VM_IP="192.168.20.20"
@@ -76,7 +86,7 @@ qm set "$VMID" --usb0 spice --usb1 spice --usb2 spice
 # Cloud-Init: set user, SSH key, network
 qm set "$VMID" \
     --ciuser admin \
-    --cipassword "changeme" \
+    --cipassword "$CI_PASSWORD" \
     --ipconfig0 "ip=$VM_IP/24,gw=192.168.20.1" \
     --nameserver "192.168.16.1" \
     --searchdomain "local"
