@@ -6,6 +6,12 @@ logs/
 gordon-mcp.yml
 /.idea/
 
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
 # Proxmox artifacts
 *.iso
 *.img
