@@ -11,7 +11,7 @@
 #   - VirtIO drivers ISO uploaded to /var/lib/vz/template/iso/
 #
 # Usage:
-#   sudo bash proxmox/vm-windows/create-win10-reference.sh [VMID] [VM_NAME]
+#   bash proxmox/vm-windows/create-win10-reference.sh [VMID] [VM_NAME]
 #
 # After VM creation:
 #   1. Start: qm start 110

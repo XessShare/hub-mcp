@@ -2,7 +2,7 @@
 # gpu-check.sh — Diagnose GPU passthrough readiness on a Proxmox host
 # Checks: IOMMU enabled, IOMMU groups, GPU detection, vfio-pci binding, NVIDIA VRAM.
 #
-# Usage: sudo bash gpu-check.sh
+# Usage (run as root on pve): bash gpu-check.sh
 
 set -euo pipefail
 

@@ -9,8 +9,9 @@
 #
 # Run on Host 1 (192.168.16.2) — requires reboot after execution.
 #
-# Usage: sudo bash setup-gpu-passthrough.sh [GPU_IDS]
-# Example: sudo bash setup-gpu-passthrough.sh "1002:73bf,1002:ab28"
+# Usage (run as root on pve):
+#   bash setup-gpu-passthrough.sh [GPU_IDS]
+# Example: bash setup-gpu-passthrough.sh "1002:73bf,1002:ab28"
 
 set -euo pipefail
 

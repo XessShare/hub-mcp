@@ -10,9 +10,9 @@
 #
 # Target host: pve (192.168.16.2)
 #
-# Usage:
-#   sudo bash proxmox/validate-phase4.sh
-#   sudo bash proxmox/validate-phase4.sh --max-retries 10 --timeout 300
+# Usage (run as root on pve):
+#   bash proxmox/validate-phase4.sh
+#   bash proxmox/validate-phase4.sh --max-retries 10 --timeout 300
 #
 # Exit codes:
 #   0 — Gate passed, Phase 4 kann starten
@@ -228,10 +228,10 @@ if $GATE_PASSED; then
     echo ""
     info "Naechste Schritte:"
     info "  1. GPU-Passthrough vorbereiten:"
-    info "     sudo bash proxmox/vm-windows/setup-gpu-passthrough.sh"
+    info "     bash proxmox/vm-windows/setup-gpu-passthrough.sh"
     info "  2. Host neu starten (erforderlich fuer IOMMU)"
     info "  3. GPU-Status pruefen:"
-    info "     sudo bash proxmox/gpu/gpu-check.sh"
+    info "     bash proxmox/gpu/gpu-check.sh"
     info "  4. GPU an VM zuweisen:"
     info "     qm set 100 --hostpci0 PCI_ADDR,pcie=1,x-vga=1"
     exit 0

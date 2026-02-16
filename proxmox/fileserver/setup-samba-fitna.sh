@@ -9,10 +9,10 @@
 #   - Mount must be rw (not ro) for write access
 #
 # Usage:
-#   sudo bash proxmox/fileserver/setup-samba-fitna.sh [SHARE_USER]
+#   bash proxmox/fileserver/setup-samba-fitna.sh [SHARE_USER]
 #
 # After running:
-#   1. Set Samba password:  sudo smbpasswd -a fitna-user
+#   1. Set Samba password:  smbpasswd -a fitna-user
 #   2. Test config:         testparm -s /etc/samba/smb.conf
 #   3. Access from Windows: \\192.168.16.2\fitna-shared
 #   4. Access from Linux:   mount -t cifs //192.168.16.2/fitna-shared /mnt/fitna
@@ -123,6 +123,6 @@ systemctl restart smbd nmbd
 log "Samba setup complete."
 log ""
 log "Next steps:"
-log "  1. Set Samba password:  sudo smbpasswd -a $SHARE_USER"
+log "  1. Set Samba password:  smbpasswd -a $SHARE_USER"
 log "  2. From Windows:        \\\\192.168.16.2\\fitna-shared"
 log "  3. From Linux:          mount -t cifs //192.168.16.2/fitna-shared /mnt/fitna -o username=$SHARE_USER"

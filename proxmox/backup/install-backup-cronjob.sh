@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # install-backup-cronjob.sh — Install a cron job for automated VM backups
 #
-# Usage: sudo bash install-backup-cronjob.sh [SCHEDULE]
+# Usage (run as root on pve): bash install-backup-cronjob.sh [SCHEDULE]
 #
 # SCHEDULE examples:
 #   daily   — Every day at 02:00 (default)

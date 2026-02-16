@@ -10,7 +10,7 @@
 #   - IOMMU enabled (intel_iommu=on / amd_iommu=on)
 #   - RX 6800 XT bound to vfio-pci (see setup-gpu-passthrough.sh)
 #
-# Usage: sudo bash create-windows-vm.sh [VMID] [VM_NAME] [WIN_ISO] [VIRTIO_ISO]
+# Usage (run as root on pve): bash create-windows-vm.sh [VMID] [VM_NAME] [WIN_ISO] [VIRTIO_ISO]
 
 set -euo pipefail
 

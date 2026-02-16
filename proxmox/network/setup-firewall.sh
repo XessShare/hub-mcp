@@ -3,7 +3,7 @@
 # Applies host-level rules via /etc/pve/local/host.fw and cluster-level
 # defaults via /etc/pve/firewall/cluster.fw.
 #
-# Usage: sudo bash setup-firewall.sh
+# Usage (run as root on pve): bash setup-firewall.sh
 
 set -euo pipefail
 
