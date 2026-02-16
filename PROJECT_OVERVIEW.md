@@ -149,6 +149,7 @@ All VM traffic flows through vmbr0 on the flat /16.
 | `proxmox/backup/vzdump-backup.sh` | vzdump backup for all VMs/CTs | Both hosts |
 | `proxmox/backup/install-backup-cronjob.sh` | Cron job for automated backups | Both hosts |
 | `proxmox/gpu/gpu-check.sh` | GPU passthrough readiness diagnostics | pve (16.2) |
+| `proxmox/validate-phase4.sh` | **Validierungs-Gate** — SSD-Mount + Samba-Check mit Auto-Retry | pve (16.2) |
 
 ### Systemd Units
 
@@ -241,6 +242,7 @@ All VM traffic flows through vmbr0 on the flat /16.
 | `proxmox/storage/mnt-omarchy.mount` | Systemd mount for Omarchy SSD | systemd | pve (16.2) |
 | `proxmox/fileserver/setup-samba-fitna.sh` | Samba config for fitna-shared | smbd, nmbd | pve (16.2) |
 | `proxmox/vm-windows/create-win10-reference.sh` | Windows 10 reference VM (VMID 110) | qemu | pve (16.2) |
+| `proxmox/validate-phase4.sh` | Phase 4 Validierungs-Gate mit Auto-Retry | systemd, smbd | pve (16.2) |
 
 ---
 
@@ -248,10 +250,23 @@ All VM traffic flows through vmbr0 on the flat /16.
 
 ### Phase Gate: Validierungs-Gate (Current Blocker)
 
-Before proceeding to Phase 4 (GPU-Passthrough), two checks must pass:
+Before proceeding to Phase 4 (GPU-Passthrough), run the automated gate script:
 
-- [ ] **Mount-Check**: Omarchy SSD visible at `/mnt/omarchy` on pve (16.2) after `systemctl start mnt-omarchy.mount`
-- [ ] **Referenz-Check**: Windows VM 110 can reach `\\192.168.16.2\fitna-shared` via Samba
+```bash
+sudo bash proxmox/validate-phase4.sh
+```
+
+The script performs two checks with exponential backoff auto-retry (3s → 6s → 12s → 24s → 48s, max 60s cap):
+
+| Check | Validates | Pass Condition |
+|-------|-----------|----------------|
+| SSD-Mount | `systemctl start mnt-omarchy.mount` | `/mnt/omarchy` is a mountpoint and readable |
+| Samba-Share | TCP:445 + `smbclient -L` listing | `fitna-shared` appears in share listing on 192.168.16.2 |
+
+Options: `--max-retries N` (default: 5), `--timeout S` (default: 180s)
+
+- [ ] **Mount-Check**: Omarchy SSD visible at `/mnt/omarchy` on pve (16.2)
+- [ ] **Referenz-Check**: Samba-Share `fitna-shared` erreichbar auf 192.168.16.2
 
 ### Unresolved Setup Tasks
 
