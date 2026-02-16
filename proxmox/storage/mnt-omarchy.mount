@@ -1,0 +1,29 @@
+# mnt-omarchy.mount — Systemd mount unit for Omarchy Linux M2 SSD
+#
+# Target host: pve (192.168.16.2)
+# Deploy to:   /etc/systemd/system/mnt-omarchy.mount
+#
+# IMPORTANT: Replace DEINE-UUID-AUS-BLKID with the actual UUID from:
+#   blkid /dev/sdX  (or /dev/nvmeXnYpZ)
+#
+# After deploying:
+#   systemctl daemon-reload
+#   systemctl start mnt-omarchy.mount
+#   systemctl enable mnt-omarchy.mount
+#
+# Initial mount is READ-ONLY (ro) for data protection.
+# After verifying data integrity, change Options to:
+#   Options=defaults,noatime,nofail,rw
+
+[Unit]
+Description=Omarchy Linux M2 SSD - Data Authority
+After=network.target
+
+[Mount]
+What=/dev/disk/by-uuid/DEINE-UUID-AUS-BLKID
+Where=/mnt/omarchy
+Type=ext4
+Options=defaults,noatime,nofail,ro
+
+[Install]
+WantedBy=multi-user.target

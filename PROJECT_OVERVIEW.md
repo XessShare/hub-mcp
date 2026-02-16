@@ -1,8 +1,8 @@
 # PROJECT OVERVIEW — Infrastructure Master Summary
 
-> Auto-generated synthesis of all documentation and infrastructure scripts in this repository.
-> Source: recursive scan of all markdown files and shell scripts.
-> No `claude.md` files were found; all data extracted from `docs/*.md`, `README.md`, and `proxmox/**/*.sh`.
+> **Revision 2** — Updated with live network analysis from @Projektleitung / @ITsicherheit review.
+> Previous revision was based solely on script defaults. This revision reflects actual host IPs,
+> subnet mask (/16), corrected hostnames, and operational state as verified against running systems.
 
 ---
 
@@ -11,106 +11,156 @@
 This repository serves a dual purpose:
 
 1. **Docker Hub MCP Server** — A Node.js/TypeScript Model Context Protocol server that interfaces with Docker Hub APIs for LLM-powered container image discovery and repository management.
-2. **Proxmox Infrastructure-as-Code** — A complete 2-host Proxmox VE cluster with GPU passthrough, VM management, remote access, and file sharing.
+2. **Proxmox Infrastructure-as-Code ("Fitna-Infrastruktur")** — A multi-host Proxmox VE cluster with GPU passthrough, VM management, remote access, shared storage, and file sharing.
 
-### Host Inventory
+### Host Inventory (Verified)
 
-#### Workstation Host — Host 1 (192.168.16.2)
+#### Host 16.2 — `pve` (Primary Storage Node)
 
 | Attribute | Value |
 |-----------|-------|
-| IP Address | `192.168.16.2` |
-| Role | Windows Workstation + large AI models |
+| Hostname | `pve` |
+| IP Address | `192.168.16.2/16` |
+| Role | Primary Storage Authority + Windows Workstation + AI models |
 | GPU | AMD RX 6800 XT (16 GB, Navi 21) |
-| Bridges | `vmbr0` (LAN, 192.168.16.2/24), `vmbr1` (VM-Netz, 192.168.20.1/24) |
-| Primary VM | `win11-workstation` (VMID 100, IP 192.168.20.10) |
-| Access | RDP from ThinkPad |
+| Bridge | `vmbr0` (192.168.16.2/16) |
+| Active VMs | VMID 100 (Ubuntu, active — `tap100i0` present) |
+| Planned VMs | VMID 110 (`win10-reference`, Windows 10 reference client) |
+| Storage | **Omarchy SSD** (M.2, ext4) mounted at `/mnt/omarchy` — Data Authority |
+| Samba Export | `[fitna-shared]` → `/mnt/omarchy/home/fitna` |
 | OS | Proxmox VE 7.x / 8.x |
-| Status | Scripts provisioned; GPU passthrough requires reboot after `setup-gpu-passthrough.sh` |
+| Status | Operational. VM 100 running. GPU passthrough pending reboot. |
 
-#### Workstation Host — Host 2 (192.168.16.3)
+#### Host 17.1 — `pve-ryzen` (Docker/Services Node)
 
 | Attribute | Value |
 |-----------|-------|
-| IP Address | `192.168.16.3` |
+| Hostname | `pve-ryzen` |
+| IP Address | `192.168.17.1/16` |
 | Role | Docker + Ollama + 24/7 services |
 | GPU | NVIDIA GTX 1080 (8 GB) |
-| Bridges | `vmbr0` (LAN, 192.168.16.3/24), `vmbr1` (VM-Netz, 192.168.20.1/24) |
-| Primary VMs | Docker host, Linux services |
+| Bridge | `vmbr0` (192.168.17.1/16) |
+| Active Services | Docker environment (bridge `br-6beede98b857` active) |
 | Access | SSH + Portainer |
 | OS | Proxmox VE 7.x / 8.x |
-| Status | Scripts provisioned; designated for always-on services |
+| Status | Operational. Docker stack running. |
 
-#### ThinkPad Client (192.168.16.10)
+#### Host 16.7 — ThinkPad (Client)
 
 | Attribute | Value |
 |-----------|-------|
-| IP Address | `192.168.16.10` |
-| Role | Client workstation (RDP/SPICE access to VMs) |
-| Routing | Requires `ip route add 192.168.20.0/24 via 192.168.16.2` |
-| Mounts | `/mnt/projects`, `/mnt/documents`, `/mnt/backups` via CIFS from 192.168.20.20 |
+| Hostname | ThinkPad |
+| IP Address | `192.168.16.7/16` |
+| Role | Client workstation (RDP/SPICE access to VMs, Samba mounts) |
+| Bridge | `vmbr0` (192.168.16.7/16) |
+| Mounts | `/mnt/fitna` via CIFS from 192.168.16.2 |
+| Status | Operational. |
+
+### Network Topology (Verified)
+
+```
+Subnet: 192.168.0.0/16 (all hosts reachable — flat /16)
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  192.168.0.0/16 — Flat LAN                                         │
+│                                                                     │
+│  ┌──────────────────────┐  ┌──────────────────────┐                │
+│  │ pve                  │  │ pve-ryzen             │                │
+│  │ 192.168.16.2/16      │  │ 192.168.17.1/16       │                │
+│  │ vmbr0                │  │ vmbr0                 │                │
+│  │ RX 6800 XT (16 GB)   │  │ GTX 1080 (8 GB)       │                │
+│  │                      │  │                       │                │
+│  │ VM 100 (Ubuntu)      │  │ Docker (br-6beede*)   │                │
+│  │ VM 110 (win10) [WIP] │  │ Ollama, APIs          │                │
+│  │                      │  │                       │                │
+│  │ Omarchy SSD (/mnt/   │  │                       │                │
+│  │   omarchy) [Auth]    │  │                       │                │
+│  │ Samba: fitna-shared  │  │                       │                │
+│  └──────────┬───────────┘  └──────────┬────────────┘                │
+│             │                         │                             │
+│  ┌──────────┴──────────────────────────┴────────────┐               │
+│  │ ThinkPad                                         │               │
+│  │ 192.168.16.7/16                                  │               │
+│  │ CIFS mounts from 16.2                            │               │
+│  └──────────────────────────────────────────────────┘               │
+└─────────────────────────────────────────────────────────────────────┘
+
+NOTE: vmbr1 is NOT present on any host in the current live state.
+The previously documented 192.168.20.0/24 VM-Netz is not active.
+All VM traffic flows through vmbr0 on the flat /16.
+```
+
+### Network Assessment
+
+| Finding | Severity | Detail |
+|---------|----------|--------|
+| /16 subnet in homelab | LOW | Broadcast domain covers 192.168.0.0–192.168.255.255. Functional but causes unnecessary broadcast overhead. Consider segmenting to /24 per host group. |
+| No vmbr1 collision | RESOLVED | Previously documented vmbr1 IP conflict (both hosts at 192.168.20.1/24) is eliminated — vmbr1 does not exist on live systems. |
+| Flat network, no segmentation | MEDIUM | All hosts and VMs share one L2 domain. No isolation between management, VM, and Docker traffic. |
 
 ### Virtual Machines
 
-| VMID | Name | Host | IP | Type | Display | Notes |
-|------|------|------|----|------|---------|-------|
-| 100 | win11-workstation | Host 1 | 192.168.20.10 | Windows 11 | GPU (RX 6800 XT passthrough) | 16 GB RAM, 8 cores, 100 GB disk, UEFI + TPM 2.0 |
-| 200 | linux-desktop | Host 1/2 | 192.168.20.20 | Ubuntu 22.04 | SPICE/QXL | 4 GB RAM, 4 cores, 50 GB disk, Cloud-Init |
-| 9000 | ubuntu-2204-cloud | Any | DHCP | Template | Serial console | Cloud-Init base template, 2 GB RAM, 2 cores, 32 GB disk |
-
-### Network Topology
-
-```
-LAN: 192.168.16.0/24
-├── Host 1:    192.168.16.2  (RX 6800 XT)
-├── Host 2:    192.168.16.3  (GTX 1080)
-├── ThinkPad:  192.168.16.10 (Client)
-└── Gateway:   192.168.16.1
-
-VM-Netz: 192.168.20.0/24 (NAT via vmbr1 → vmbr0)
-├── Windows VM:  192.168.20.10 (VMID 100)
-├── Linux VM:    192.168.20.20 (VMID 200)
-└── Gateway:     192.168.20.1  (vmbr1 on hosts)
-```
+| VMID | Name | Host | Status | Type | Display | Notes |
+|------|------|------|--------|------|---------|-------|
+| 100 | (Ubuntu VM) | pve (16.2) | **RUNNING** | Ubuntu Linux | SPICE/Console | Active — `tap100i0` confirmed |
+| 110 | win10-reference | pve (16.2) | **PLANNED** | Windows 10 | GPU (after passthrough) | Reference client for Samba validation |
+| 200 | linux-desktop | pve (16.2) | Scripted | Ubuntu 22.04 | SPICE/QXL | 4 GB RAM, 4 cores, Cloud-Init |
+| 9000 | ubuntu-2204-cloud | Any | Template | Ubuntu 22.04 | Serial | Cloud-Init base template |
 
 ---
 
 ## B) CENTRALIZED INFRASTRUCTURE
 
+### Storage Authority
+
+| Attribute | Value |
+|-----------|-------|
+| Authority Host | `pve` (192.168.16.2) |
+| Device | Omarchy M.2 SSD |
+| Filesystem | ext4 |
+| Mount Point | `/mnt/omarchy` |
+| Mount Method | systemd mount unit (`mnt-omarchy.mount`) |
+| Initial Mode | `ro` (read-only for verification, then `rw`) |
+| Samba Export | `/mnt/omarchy/home/fitna` → `[fitna-shared]` |
+| Network Consumers | pve-ryzen (17.1), ThinkPad (16.7) via CIFS |
+
 ### Scripts
 
 | Path | Purpose | Target Host |
 |------|---------|-------------|
-| `proxmox/network/setup-nat.sh` | NAT/MASQUERADE for 192.168.20.0/24 → WAN | Both hosts |
+| `proxmox/network/setup-nat.sh` | NAT/MASQUERADE for VM subnet → WAN | pve (16.2) |
 | `proxmox/network/setup-firewall.sh` | PVE cluster + host firewall rules | Both hosts |
 | `proxmox/network/harden-ssh.sh` | SSH hardening (key-only, no root password) | Both hosts |
 | `proxmox/network/setup-fail2ban.sh` | Fail2Ban for SSH + PVE Web GUI | Both hosts |
-| `proxmox/network/interfaces-host1.example` | `/etc/network/interfaces` template for Host 1 | Host 1 |
-| `proxmox/network/interfaces-host2.example` | `/etc/network/interfaces` template for Host 2 | Host 2 |
-| `proxmox/vm-windows/setup-gpu-passthrough.sh` | IOMMU + vfio-pci for RX 6800 XT | Host 1 |
-| `proxmox/vm-windows/create-windows-vm.sh` | Windows 11 VM with GPU passthrough | Host 1 |
-| `proxmox/vm-linux-desktop/create-linux-desktop-vm.sh` | Linux Desktop VM (SPICE/QXL) | Host 1 or 2 |
+| `proxmox/network/interfaces-host1.example` | `/etc/network/interfaces` template (Host 16.2) | pve (16.2) |
+| `proxmox/network/interfaces-host2.example` | `/etc/network/interfaces` template (Host 16.3 — **outdated**) | **Needs update for 17.1** |
+| `proxmox/vm-windows/setup-gpu-passthrough.sh` | IOMMU + vfio-pci for RX 6800 XT | pve (16.2) |
+| `proxmox/vm-windows/create-windows-vm.sh` | Windows 11 VM with GPU passthrough (VMID 100) | pve (16.2) |
+| `proxmox/vm-windows/create-win10-reference.sh` | Windows 10 reference client (VMID 110) | pve (16.2) |
+| `proxmox/vm-linux-desktop/create-linux-desktop-vm.sh` | Linux Desktop VM (SPICE/QXL) | pve (16.2) |
 | `proxmox/vm-templates/setup-storage.sh` | Storage backends (local-lvm, NFS, ZFS) | Both hosts |
 | `proxmox/vm-templates/create-cloud-init-template.sh` | Cloud-Init base template (VMID 9000) | Both hosts |
-| `proxmox/remote-access/connect-rdp.sh` | RDP to Windows VM | ThinkPad |
-| `proxmox/remote-access/connect-spice.sh` | SPICE to Linux VM via Proxmox API | ThinkPad |
-| `proxmox/remote-access/setup-thinkpad-routes.sh` | Route 192.168.20.0/24 on ThinkPad | ThinkPad |
-| `proxmox/fileserver/setup-samba.sh` | Samba server in Linux VM | Linux VM (200) |
-| `proxmox/fileserver/mount-share-thinkpad.sh` | Mount CIFS shares on ThinkPad | ThinkPad |
+| `proxmox/remote-access/connect-rdp.sh` | RDP to Windows VM | ThinkPad (16.7) |
+| `proxmox/remote-access/connect-spice.sh` | SPICE to Linux VM via Proxmox API | ThinkPad (16.7) |
+| `proxmox/remote-access/setup-thinkpad-routes.sh` | Route VM subnet on ThinkPad | ThinkPad (16.7) |
+| `proxmox/fileserver/setup-samba.sh` | Samba server (generic, in VM) | Linux VM |
+| `proxmox/fileserver/setup-samba-fitna.sh` | Samba for Omarchy SSD fitna-shared | pve (16.2) |
+| `proxmox/fileserver/mount-share-thinkpad.sh` | Mount CIFS shares on ThinkPad | ThinkPad (16.7) |
 | `proxmox/backup/vzdump-backup.sh` | vzdump backup for all VMs/CTs | Both hosts |
 | `proxmox/backup/install-backup-cronjob.sh` | Cron job for automated backups | Both hosts |
-| `proxmox/gpu/gpu-check.sh` | GPU passthrough readiness diagnostics | Host 1 |
+| `proxmox/gpu/gpu-check.sh` | GPU passthrough readiness diagnostics | pve (16.2) |
 
-### Systemd Services and Daemons
+### Systemd Units
 
-| Service | Configured By | Host/VM | Action |
-|---------|--------------|---------|--------|
-| `sshd` | `harden-ssh.sh` | Both hosts | Restart after hardening |
-| `fail2ban` | `setup-fail2ban.sh` | Both hosts | Enable + start |
-| `smbd` | `setup-samba.sh` | Linux VM (200) | Enable + restart |
-| `nmbd` | `setup-samba.sh` | Linux VM (200) | Enable + restart |
-| `pvedaemon` | `setup-fail2ban.sh` (monitored) | Both hosts | Monitored by Fail2Ban |
-| `netfilter-persistent` | `setup-nat.sh` | Both hosts | Save iptables rules |
+| Unit | Type | Configured By | Host | Action |
+|------|------|--------------|------|--------|
+| `mnt-omarchy.mount` | mount | `proxmox/storage/mnt-omarchy.mount` | pve (16.2) | Mount Omarchy SSD |
+| `sshd` | service | `harden-ssh.sh` | Both hosts | Restart after hardening |
+| `fail2ban` | service | `setup-fail2ban.sh` | Both hosts | Enable + start |
+| `smbd` | service | `setup-samba-fitna.sh` | pve (16.2) | Enable + restart |
+| `nmbd` | service | `setup-samba-fitna.sh` | pve (16.2) | Enable + restart |
+| `pvedaemon` | service | `setup-fail2ban.sh` (monitored) | Both hosts | Monitored by Fail2Ban |
+| `netfilter-persistent` | service | `setup-nat.sh` | Both hosts | Save iptables rules |
 
 ### Timers and Cron Jobs
 
@@ -118,28 +168,26 @@ VM-Netz: 192.168.20.0/24 (NAT via vmbr1 → vmbr0)
 |----------|--------|-------------|----------|
 | `0 2 * * *` (daily 02:00) | `vzdump-backup.sh` | Full VE backup of all VMs/CTs | `/var/log/proxmox-backup-cron.log` |
 | `0 3 * * 0` (weekly Sunday 03:00) | `vzdump-backup.sh` | Alternative weekly schedule | `/var/log/proxmox-backup-cron.log` |
-| Cron file: `/etc/cron.d/proxmox-backup` | `install-backup-cronjob.sh` | Installer for above schedules | — |
+| Cron file: `/etc/cron.d/proxmox-backup` | `install-backup-cronjob.sh` | Installer for above | — |
 
 ### Deploy Scripts / CI/CD
 
 | Workflow | File | Trigger | Purpose |
 |----------|------|---------|---------|
-| Lint | `.github/workflows/lint.yml` | PR to any branch | Run `npm run lint` + `npm run format:check` |
-| Release Docker Image | `.github/workflows/release.yml` | Push to `main` or manual dispatch | Build and push `docker/dockerhub-mcp:{version}` to Docker Hub |
-| Scorecard | `.github/workflows/scorecard.yml` | Push to `main`, weekly schedule | OSSF supply-chain security analysis |
-| Tools List | `.github/workflows/tools-list.yml` | PR to any branch | Verify tools list is up to date |
-
-**Docker image**: `docker/dockerhub-mcp` — multi-platform (`linux/amd64`, `linux/arm64`), built with SBOM and provenance attestation.
+| Lint | `.github/workflows/lint.yml` | PR to any branch | `npm run lint` + `npm run format:check` |
+| Release | `.github/workflows/release.yml` | Push to `main` / manual | Build `docker/dockerhub-mcp:{version}` |
+| Scorecard | `.github/workflows/scorecard.yml` | Push to `main`, weekly | OSSF supply-chain security |
+| Tools List | `.github/workflows/tools-list.yml` | PR to any branch | Verify tools list |
 
 ### Logging Strategy
 
 | Component | Log Target | Details |
 |-----------|-----------|---------|
-| vzdump backups | `/var/log/vzdump-backup-YYYYMMDD-HHMMSS.log` | Per-run timestamped logs, auto-cleaned after 30 days |
+| vzdump backups | `/var/log/vzdump-backup-YYYYMMDD-HHMMSS.log` | Auto-cleaned after 30 days |
 | Backup cron | `/var/log/proxmox-backup-cron.log` | Cron job output |
-| Fail2Ban SSH | systemd journal (`sshd.service`) | Monitored for brute-force attempts |
-| Fail2Ban PVE | systemd journal (`pvedaemon.service`) | Monitored for web GUI auth failures |
-| MCP Server | Winston logger (stdout) | Application-level logging via `winston` |
+| Fail2Ban SSH | systemd journal (`sshd.service`) | Brute-force monitoring |
+| Fail2Ban PVE | systemd journal (`pvedaemon.service`) | Web GUI auth failures |
+| MCP Server | Winston logger (stdout) | `winston` logging |
 
 ### Storage Backends
 
@@ -147,8 +195,9 @@ VM-Netz: 192.168.20.0/24 (NAT via vmbr1 → vmbr0)
 |------------|------|---------------|---------------------|
 | `local-lvm` | LVM thin pool | `rootdir`, `images` | VG: `pve`, pool: `data` |
 | `local` | Directory | `iso`, `vztmpl`, `backup`, `snippets` | `/var/lib/vz/template/iso` |
-| `nfs-shared` (optional) | NFS | `images`, `iso`, `backup`, `vztmpl` | Server: `192.168.1.100:/export/pve-storage` |
-| `local-zfs` (optional) | ZFS | `rootdir`, `images` | Pool: `rpool/data` |
+| `omarchy` | ext4 (systemd mount) | Data authority | `/mnt/omarchy` on pve (16.2) |
+| `nfs-shared` (optional) | NFS | `images`, `iso`, `backup`, `vztmpl` | Not deployed |
+| `local-zfs` (optional) | ZFS | `rootdir`, `images` | Not deployed |
 
 ### Firewall Rules (Cluster-Level)
 
@@ -163,21 +212,17 @@ VM-Netz: 192.168.20.0/24 (NAT via vmbr1 → vmbr0)
 | IN | TCP | 60000-60050 | any | ACCEPT (Live migration) |
 | IN | * | * | any | DROP (default policy) |
 
-### Samba Shares (Linux VM 192.168.20.20)
+### Samba Shares (pve 192.168.16.2)
 
-| Share Name | Local Path | Permissions |
-|------------|-----------|-------------|
-| `projects` | `/srv/projects/projects` | Read/write |
-| `documents` | `/srv/projects/documents` | Read/write |
-| `backups` | `/srv/projects/backups` | Read/write |
+| Share Name | Local Path | Valid Users | Permissions |
+|------------|-----------|-------------|-------------|
+| `fitna-shared` | `/mnt/omarchy/home/fitna` | `fitna-user` | Read/write, `force create mode 0660`, `force directory mode 0770` |
 
-### Mount Points (ThinkPad)
+### Mount Points (ThinkPad 16.7 / pve-ryzen 17.1)
 
 | Mount Point | Remote Source | Type | Credentials |
 |-------------|-------------|------|-------------|
-| `/mnt/projects` | `//192.168.20.20/projects` | CIFS | `/root/.smbcredentials` |
-| `/mnt/documents` | `//192.168.20.20/documents` | CIFS | `/root/.smbcredentials` |
-| `/mnt/backups` | `//192.168.20.20/backups` | CIFS | `/root/.smbcredentials` |
+| `/mnt/fitna` | `//192.168.16.2/fitna-shared` | CIFS | Credentials file (chmod 600) |
 
 ---
 
@@ -185,51 +230,60 @@ VM-Netz: 192.168.20.0/24 (NAT via vmbr1 → vmbr0)
 
 | Document Path | Describes | Related Services | Related Host |
 |---------------|-----------|-----------------|--------------|
-| `README.md` | Docker Hub MCP Server: setup, authentication, usage with Claude Desktop, VS Code, Gordon | MCP Server (Node.js), Docker | Application-level (any) |
-| `docs/proxmox-setup.md` | Full Proxmox cluster IaC: network, GPU, VMs, access, backups | All Proxmox services, vzdump, Samba, SPICE, RDP | Host 1, Host 2, ThinkPad |
+| `README.md` | Docker Hub MCP Server: setup, auth, Claude Desktop, VS Code, Gordon | MCP Server, Docker | Application-level |
+| `docs/proxmox-setup.md` | Full Proxmox cluster IaC (original plan, partially outdated IPs) | All Proxmox services | pve, pve-ryzen, ThinkPad |
 | `CONTRIBUTING.md` | Contribution guidelines, code style, PR process | GitHub Actions CI | Application-level |
 | `SECURITY.md` | Vulnerability disclosure policy | — | Application-level |
 | `CODE_OF_CONDUCT.md` | Community conduct standards | — | Application-level |
-| `.github/pull_request_template.md` | PR template for contributors | GitHub Actions | Application-level |
-| `proxmox/network/interfaces-host1.example` | Network interface config for Host 1 | vmbr0, vmbr1, iptables NAT | Host 1 (192.168.16.2) |
-| `proxmox/network/interfaces-host2.example` | Network interface config for Host 2 | vmbr0, vmbr1, iptables NAT | Host 2 (192.168.16.3) |
+| `.github/pull_request_template.md` | PR template | GitHub Actions | Application-level |
+| `proxmox/network/interfaces-host1.example` | Network interface config for pve | vmbr0, iptables | pve (16.2) |
+| `proxmox/network/interfaces-host2.example` | Network interface config (**outdated — says 16.3, actual is 17.1**) | vmbr0, iptables | pve-ryzen (17.1) |
+| `proxmox/storage/mnt-omarchy.mount` | Systemd mount for Omarchy SSD | systemd | pve (16.2) |
+| `proxmox/fileserver/setup-samba-fitna.sh` | Samba config for fitna-shared | smbd, nmbd | pve (16.2) |
+| `proxmox/vm-windows/create-win10-reference.sh` | Windows 10 reference VM (VMID 110) | qemu | pve (16.2) |
 
 ---
 
 ## D) NEXT ACTIONS
 
+### Phase Gate: Validierungs-Gate (Current Blocker)
+
+Before proceeding to Phase 4 (GPU-Passthrough), two checks must pass:
+
+- [ ] **Mount-Check**: Omarchy SSD visible at `/mnt/omarchy` on pve (16.2) after `systemctl start mnt-omarchy.mount`
+- [ ] **Referenz-Check**: Windows VM 110 can reach `\\192.168.16.2\fitna-shared` via Samba
+
 ### Unresolved Setup Tasks
 
-- [ ] **GPU passthrough reboot**: `setup-gpu-passthrough.sh` requires a reboot of Host 1 after execution — no automation exists for post-reboot verification
-- [ ] **Windows VM post-install**: VirtIO guest tools, AMD GPU drivers, Remote Desktop enablement, and static IP configuration (`192.168.20.10/24`) are manual steps inside the VM
-- [ ] **Linux VM post-install**: `ubuntu-desktop` and `spice-vdagent` installation requires SSH into VM after first boot — not automated
-- [ ] **Samba password**: `smbpasswd -a smbuser` is interactive — no unattended provisioning exists
-- [ ] **ThinkPad route persistence**: Route to `192.168.20.0/24` must be manually persisted via `/etc/network/interfaces` or NetworkManager — no single-command persistent setup
-- [ ] **CIFS credentials file**: `/root/.smbcredentials` must be manually created with username/password on ThinkPad
-- [ ] **Cloud-Init template default credentials**: Template uses `admin`/`changeme` — needs post-deployment credential rotation
-- [ ] **Host 2 GPU passthrough**: No script exists for GTX 1080 passthrough on Host 2 (only RX 6800 XT on Host 1 is scripted)
+- [ ] **Omarchy SSD UUID**: `mnt-omarchy.mount` requires the real UUID from `blkid` — placeholder `DEINE-UUID-AUS-BLKID` must be replaced
+- [ ] **Omarchy ro → rw transition**: Initial mount is read-only for safety; must verify data integrity before switching to `rw`
+- [ ] **Samba user creation**: `fitna-user` must be created with `useradd -M -s /usr/sbin/nologin fitna-user && smbpasswd -a fitna-user` (interactive)
+- [ ] **GPU passthrough reboot**: `setup-gpu-passthrough.sh` requires reboot of pve (16.2) — no post-reboot verification automation
+- [ ] **Windows VM 110 post-install**: VirtIO drivers, network config, RDP enablement are manual in-VM steps
+- [ ] **Ubuntu VM 100 GPU passthrough**: RX 6800 XT passthrough for VM 100 is the next phase target after validation gate passes
+- [ ] **interfaces-host2.example outdated**: Still references 192.168.16.3 — must be updated to 192.168.17.1 for pve-ryzen
+- [ ] **Cloud-Init default credentials**: Template uses `admin`/`changeme` — requires post-deployment rotation
 
 ### Missing Automation Pieces
 
-- [ ] **No systemd service for MCP server**: The Docker Hub MCP server has no systemd unit file or process manager configuration for production deployment on the hosts
-- [ ] **No systemd timer for backups**: Backups use raw cron (`/etc/cron.d/proxmox-backup`) instead of systemd timers — no structured logging integration
-- [ ] **No Ansible/Terraform orchestration**: All scripts are standalone bash — no orchestration layer to run the full 6-phase deployment end-to-end
-- [ ] **No monitoring/alerting**: No Prometheus, Grafana, or alerting stack for host health, VM status, or backup success verification
-- [ ] **No automated testing**: Infrastructure scripts have no validation suite or dry-run mode
-- [ ] **No NFS/ZFS storage automation**: NFS and ZFS backends are commented out in `setup-storage.sh` — not deployed
-- [ ] **No Docker Compose for MCP server**: Only a `Dockerfile` exists; no `docker-compose.yml` for local development or multi-service deployment
-- [ ] **No SSL/TLS certificate management**: No Let's Encrypt or certificate provisioning for Proxmox Web GUI or MCP server
+- [ ] **No orchestration layer**: All scripts are standalone bash — no Ansible/Terraform for end-to-end deployment
+- [ ] **No monitoring/alerting**: No Prometheus, Grafana, or alerting for host health, VM status, backup verification
+- [ ] **No systemd timer for backups**: Uses raw cron instead of systemd timers
+- [ ] **No NFS/ZFS storage deployed**: Commented out in `setup-storage.sh`
+- [ ] **No SSL/TLS certificate management**: No Let's Encrypt for PVE Web GUI or MCP server
 
 ### Potential Infrastructure Risks
 
-- [ ] **Default credentials in scripts**: Cloud-Init templates use `admin`/`changeme`; Samba user created with no password policy enforcement
-- [ ] **Shared vmbr1 gateway IP**: Both hosts configure `vmbr1` as `192.168.20.1/24` — if both are active simultaneously, IP conflict will occur on the VM network
-- [ ] **No HA/failover**: VMs are pinned to specific hosts; no Proxmox HA group or automatic failover configured
-- [ ] **Firewall allows SSH from any source**: Cluster firewall accepts SSH (port 22) from any IP — should be restricted to management subnet
-- [ ] **Backup retention is minimal**: Default `keep-last=3` with no offsite replication or backup verification
-- [ ] **No disk encryption**: No LUKS or ZFS encryption configured for VM storage or host disks
-- [ ] **Single-point network gateway**: All VM traffic NATs through the host's `vmbr0` — no redundant path
-- [ ] **Proxmox GUI exposed broadly**: Port 8006 is open to all sources in cluster firewall rules
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| /16 subnet broadcast overhead | LOW | Segment to /24 per host group when traffic grows |
+| Default credentials in scripts | HIGH | Rotate immediately after deployment; enforce password policy |
+| No HA/failover | MEDIUM | VMs pinned to specific hosts; no Proxmox HA groups |
+| Firewall allows SSH from any source | HIGH | Restrict port 22 to management subnet (192.168.16.0/24) |
+| Backup retention minimal (keep-last=3) | MEDIUM | Add offsite replication; implement backup verification |
+| No disk encryption | MEDIUM | Consider LUKS or ZFS encryption for sensitive data |
+| Proxmox GUI exposed broadly (8006) | HIGH | Restrict to management subnet |
+| Omarchy SSD single point of failure | HIGH | No backup strategy for authority data yet |
 
 ---
 
@@ -247,7 +301,5 @@ VM-Netz: 192.168.20.0/24 (NAT via vmbr1 → vmbr0)
 | Docker Image | `docker/dockerhub-mcp:{version}` |
 | Entry Point | `dist/index.js` |
 | Key Dependencies | `@modelcontextprotocol/sdk`, `express`, `winston`, `zod`, `jwt-decode` |
-| Build | `npm install && npm run build` (TypeScript → `dist/`) |
-| Lint | `npm run lint` (ESLint) |
-| Format | `npm run format:check` / `npm run format:fix` (Prettier) |
+| Build | `npm install && npm run build` |
 | License | Apache 2.0 |
