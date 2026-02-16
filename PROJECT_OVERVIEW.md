@@ -156,6 +156,7 @@ All VM traffic flows through vmbr0 on the flat /16.
 | `proxmox/fileserver/mount-share-thinkpad.sh` | Mount CIFS shares on ThinkPad | ThinkPad (16.7) |
 | `proxmox/backup/vzdump-backup.sh` | vzdump backup for all VMs/CTs | Both hosts |
 | `proxmox/backup/install-backup-cronjob.sh` | Cron job for automated backups | Both hosts |
+| `proxmox/backup/backup-user-data.sh` | Rsync user data from Omarchy SSD to pve-ryzen 2TB HDD | pve (16.2) → pve-ryzen (17.1) |
 | `proxmox/gpu/gpu-check.sh` | GPU passthrough readiness diagnostics | pve (16.2) |
 | `proxmox/validate-phase4.sh` | **Validierungs-Gate** — SSD-Mount + Samba-Check mit Auto-Retry | pve (16.2) |
 
@@ -177,6 +178,7 @@ All VM traffic flows through vmbr0 on the flat /16.
 |----------|--------|-------------|----------|
 | `0 2 * * *` (daily 02:00) | `vzdump-backup.sh` | Full VE backup of all VMs/CTs | `/var/log/proxmox-backup-cron.log` |
 | `0 3 * * 0` (weekly Sunday 03:00) | `vzdump-backup.sh` | Alternative weekly schedule | `/var/log/proxmox-backup-cron.log` |
+| `0 3 * * *` (daily 03:00) | `backup-user-data.sh` | Rsync user data → pve-ryzen 2TB HDD | `/var/log/backup-user-data-*.log` |
 | Cron file: `/etc/cron.d/proxmox-backup` | `install-backup-cronjob.sh` | Installer for above | — |
 
 ### Deploy Scripts / CI/CD
@@ -251,6 +253,8 @@ All VM traffic flows through vmbr0 on the flat /16.
 | `proxmox/fileserver/setup-samba-fitna.sh` | Samba config for fitna-shared | smbd, nmbd | pve (16.2) |
 | `proxmox/vm-windows/create-win10-reference.sh` | Windows 10 reference VM (VMID 110) | qemu | pve (16.2) |
 | `proxmox/validate-phase4.sh` | Phase 4 Validierungs-Gate mit Auto-Retry | systemd, smbd | pve (16.2) |
+| `docs/backup-runbook.md` | User data backup runbook: Omarchy → pve-ryzen 2TB HDD | rsync, SSH | pve (16.2) → pve-ryzen (17.1) |
+| `proxmox/backup/backup-user-data.sh` | Rsync backup script with auto-detect, dry-run, excludes | rsync, SSH | pve (16.2) |
 
 ---
 
@@ -306,7 +310,7 @@ Options: `--max-retries N` (default: 5), `--timeout S` (default: 180s)
 | Backup retention minimal (keep-last=3) | MEDIUM | Add offsite replication; implement backup verification |
 | No disk encryption | MEDIUM | Consider LUKS or ZFS encryption for sensitive data |
 | Proxmox GUI exposed broadly (8006) | HIGH | Restrict to management subnet |
-| Omarchy SSD single point of failure | HIGH | No backup strategy for authority data yet |
+| Omarchy SSD single point of failure | HIGH | **Mitigated:** rsync to pve-ryzen 2TB HDD via `backup-user-data.sh`. Restore drill still pending |
 
 ---
 

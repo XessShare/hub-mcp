@@ -59,7 +59,8 @@ Deployment (on target hosts):
 | `proxmox/vm-windows/` | GPU passthrough + Windows VM creation |
 | `proxmox/vm-templates/` | Cloud-Init template (VMID 9000) |
 | `proxmox/fileserver/` | Samba setup (fitna-shared on Omarchy SSD) |
-| `proxmox/backup/` | vzdump + cron-based backup |
+| `proxmox/backup/` | vzdump + cron-based backup + user data rsync to pve-ryzen |
+| `docs/backup-runbook.md` | Backup runbook: Omarchy SSD → pve-ryzen 2TB HDD, restore procedures |
 | `src/` | MCP server TypeScript source |
 
 ## Current Maturity
@@ -74,7 +75,7 @@ Deployment (on target hosts):
 
 ## Top Risks (act on these)
 
-1. **Backup untested** — no restore drill ever performed
+1. **Backup partially addressed** — rsync script created (→ pve-ryzen 2TB HDD), restore drill still pending
 2. **No DSGVO docs** — VVT, TOMs, AV contracts missing (blocks customer ops)
 3. **Proxmox Web-UI** — no MFA
 4. **jbot-api** — no authentication
