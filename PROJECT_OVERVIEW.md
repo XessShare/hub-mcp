@@ -1,8 +1,16 @@
 # PROJECT OVERVIEW — Infrastructure Master Summary
 
-> **Revision 2** — Updated with live network analysis from @Projektleitung / @ITsicherheit review.
+> **Revision 3** — Updated with full infrastructure, security, and compliance analysis.
 > Previous revision was based solely on script defaults. This revision reflects actual host IPs,
 > subnet mask (/16), corrected hostnames, and operational state as verified against running systems.
+>
+> **Maturity Scores (assessed):**
+> Infrastructure: 2.5/5 | Security: 2/5 | AI-Readiness: 6/10 tech, 2/10 commercial
+>
+> **Related analysis documents:**
+> - [Infrastructure Analysis](docs/infrastructure-analysis.md) — Full strategic analysis, risk register, architecture roadmap
+> - [Security & Compliance](docs/security-compliance.md) — Zero Trust gaps, DSGVO (GDPR), EU AI Act requirements
+> - [90-Day Tactical Plan](docs/roadmap-90day.md) — Prioritized action items for pilot-customer readiness
 
 ---
 
@@ -302,7 +310,43 @@ Options: `--max-retries N` (default: 5), `--timeout S` (default: 180s)
 
 ---
 
-## E) APPENDIX — MCP Server Summary
+## E) MATURITY & RISK SUMMARY
+
+### Infrastructure Maturity (2.5/5)
+
+| Dimension | Score | Key Gap |
+|-----------|-------|---------|
+| Provisioning | 3/5 | Missing: versioning, automated testing |
+| Backup & Recovery | 2/5 | No restore test, no offsite, no encryption |
+| Monitoring | 1.5/5 | Defined but not operational, no alerting |
+| Network | 2.5/5 | Docker isolation good; host/VM layer flat /16 |
+| Security | 2/5 | No MFA, no IDS, no encryption at rest |
+| Documentation | 1.5/5 | No runbooks, no policies, no architecture diagram |
+| Automation | 2.5/5 | No CI/CD, no automated tests |
+
+### Top 5 Risks
+
+| Risk | Severity | Immediate Action |
+|------|----------|-----------------|
+| Backup untested (no restore drill) | CRITICAL | Run restore test this week |
+| No DSGVO documentation (VVT, TOMs, AV) | CRITICAL | Create before any customer engagement |
+| Proxmox Web-UI without MFA | HIGH | Activate TOTP |
+| jbot-api has no authentication | HIGH | Implement API key auth before pilot |
+| Bus factor = 1 (Jonas) | HIGH | Password safe + runbooks |
+
+### Critical Path to Pilot Readiness
+
+```
+Week 1-4:  Stability + Security (restore test, MFA, auditd, Samba hardening)
+Week 5-8:  Compliance + Docs (VVT, TOMs, AV template, runbooks)
+Week 9-12: AI Enablement + Pilot (API auth, Qdrant backup, customer onboarding)
+```
+
+See [90-Day Tactical Plan](docs/roadmap-90day.md) for full details.
+
+---
+
+## F) APPENDIX — MCP Server Summary
 
 | Attribute | Value |
 |-----------|-------|
