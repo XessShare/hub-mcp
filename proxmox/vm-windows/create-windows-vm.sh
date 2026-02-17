@@ -99,11 +99,10 @@ fi
 # Disable default display (GPU takes over)
 qm set "$VMID" --vga none
 
-# --- USB passthrough for keyboard/mouse (optional) ---
-# Uncomment and adjust if needed:
-# qm set "$VMID" --usb0 host=046d:c52b   # Logitech receiver
-# qm set "$VMID" --usb1 host=1532:006e   # Razer keyboard
-
+# --- USB passthrough for keyboard/mouse ---
+# With GPU passthrough (--vga none), the VM display goes to the physical GPU
+# but keyboard/mouse are NOT automatically passed through.
+# Use fix-usb-passthrough.sh to auto-detect and pass through USB input devices.
 echo ""
 echo "============================================"
 echo "  VM $VMID ($VM_NAME) created successfully"
@@ -111,24 +110,30 @@ echo "============================================"
 echo ""
 echo "NEXT STEPS:"
 echo ""
-echo "1. Start VM and install Windows:"
-echo "   qm start $VMID"
-echo "   (Use Proxmox console for initial install — VGA output goes to GPU)"
+echo "1. Pass through USB keyboard & mouse (required for GPU passthrough):"
+echo "   sudo bash proxmox/vm-windows/fix-usb-passthrough.sh $VMID"
+echo "   Or manually:"
+echo "   qm set $VMID --usb0 host=VENDOR:PRODUCT   # keyboard (see lsusb)"
+echo "   qm set $VMID --usb1 host=VENDOR:PRODUCT   # mouse"
 echo ""
-echo "2. During Windows install, load VirtIO drivers:"
+echo "2. Start VM and install Windows:"
+echo "   qm start $VMID"
+echo "   (Display output goes to the passthrough GPU)"
+echo ""
+echo "3. During Windows install, load VirtIO drivers:"
 echo "   Browse to D:\\amd64\\w11\\ for storage driver"
 echo "   Browse to D:\\NetKVM\\w11\\amd64\\ for network driver"
 echo ""
-echo "3. After install, inside Windows:"
+echo "4. After install, inside Windows:"
 echo "   a) Install VirtIO guest tools (D:\\virtio-win-guest-tools.exe)"
 echo "   b) Install AMD GPU drivers"
 echo "   c) Enable Remote Desktop:"
-echo "      Settings → System → Remote Desktop → ON"
+echo "      Settings -> System -> Remote Desktop -> ON"
 echo "   d) Set static IP: $VM_IP/24, Gateway: 192.168.20.1, DNS: 192.168.16.1"
 echo ""
-echo "4. Change boot order after install:"
+echo "5. Change boot order after install:"
 echo "   qm set $VMID --boot order=scsi0"
 echo ""
-echo "5. Connect from ThinkPad (192.168.16.10):"
+echo "6. Connect from ThinkPad (192.168.16.10):"
 echo "   xfreerdp /v:$VM_IP /u:Administrator /dynamic-resolution"
 echo ""
