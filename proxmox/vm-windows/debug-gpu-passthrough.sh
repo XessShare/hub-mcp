@@ -186,6 +186,13 @@ if dmesg | grep -q "failed to reset PCI device"; then
     PROBLEMS+=("gpu_reset_bug")
 fi
 
+# Problem 2b: vendor-reset module missing
+if ! lsmod | grep -q vendor_reset; then
+    warn "PROBLEM: vendor-reset module not loaded (needed for AMD Navi GPU reset)"
+    log "  -> Fix with: sudo bash fix-amd-gpu-reset.sh $GPU_ADDR"
+    PROBLEMS+=("no_vendor_reset")
+fi
+
 # Problem 3: VGA not set to 'none' with GPU passthrough
 if [[ "$HOSTPCI" != "NONE" ]] && [[ "$VGA_TYPE" != "none" ]] && [[ "$VGA_TYPE" != "default" ]]; then
     warn "PROBLEM: VGA is '$VGA_TYPE' — should be 'none' with GPU passthrough"
