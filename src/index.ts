@@ -85,3 +85,8 @@ process.on('SIGINT', async () => {
     logger.info('shutting down server...');
     process.exit(0);
 });
+
+process.on('SIGTERM', async () => {
+    logger.info('shutting down server...');
+    process.exit(0);
+});

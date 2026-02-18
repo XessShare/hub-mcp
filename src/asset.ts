@@ -19,6 +19,8 @@ import { logger } from './logger';
 import { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp';
 import { jwtDecode } from 'jwt-decode';
 
+const FETCH_TIMEOUT_MS = 30_000;
+
 export type AssetConfig = {
     name: string;
     host: string;
@@ -59,13 +61,25 @@ export class Asset implements Asset {
         if (token) {
             (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
         }
-        const response = await fetch(url, { ...options, headers });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+        const response = await fetch(url, { ...options, headers, signal: controller.signal }).finally(
+            () => clearTimeout(timeoutId)
+        );
         const responseText = await response.text();
         if (!response.ok) {
             // try to get the error message from the response
+            const sanitizedOptions = {
+                ...options,
+                headers: Object.fromEntries(
+                    Object.entries((options.headers || {}) as Record<string, string>).map(
+                        ([k, v]) => [k, k.toLowerCase() === 'authorization' ? '[REDACTED]' : v]
+                    )
+                ),
+            };
             logger.error(
                 `HTTP error on '${url}' with request: ${JSON.stringify(
-                    options
+                    sanitizedOptions
                 )}\n status: ${response.status} ${response.statusText}\n error: ${responseText}`
             );
 
@@ -158,7 +172,7 @@ export class Asset implements Asset {
     protected async authenticate(): Promise<string> {
         // Add authentication
         if (this.config.auth) {
-            console.error(`Authenticating with ${this.config.auth.type}`);
+            logger.debug(`Authenticating with ${this.config.auth.type}`);
             switch (this.config.auth.type) {
                 case 'bearer':
                     if (this.config.auth.token) {
@@ -201,8 +215,10 @@ export class Asset implements Asset {
         if (!username) {
             throw new Error('PAT auth: Username is empty');
         }
-        console.error(`Authenticating PAT for ${username}`);
+        logger.debug(`Authenticating PAT for ${username}`);
         const url = `https://hub.docker.com/v2/users/login`;
+        const patController = new AbortController();
+        const patTimeoutId = setTimeout(() => patController.abort(), FETCH_TIMEOUT_MS);
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -210,7 +226,8 @@ export class Asset implements Asset {
                 username: username,
                 password: this.config.auth?.token,
             }),
-        });
+            signal: patController.signal,
+        }).finally(() => clearTimeout(patTimeoutId));
         if (!response.ok) {
             throw new Error(
                 `Failed to authenticate PAT for ${username}: ${response.status} ${response.statusText}`
