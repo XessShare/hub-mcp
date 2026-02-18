@@ -40,9 +40,11 @@ export type AssetResponse<T> = {
 export class Asset implements Asset {
     protected tools: Map<string, RegisteredTool>;
     protected tokens: Map<string, { token: string; expirationDate: Date }>;
+    private readonly authInFlight: Map<string, Promise<string>>;
     constructor(protected config: AssetConfig) {
         this.tokens = new Map();
         this.tools = new Map();
+        this.authInFlight = new Map();
     }
     RegisterTools(): void {
         throw new Error('Method not implemented.');
@@ -188,21 +190,30 @@ export class Asset implements Asset {
                         });
                         return '';
                     }
-                    if (!this.tokens.get(this.config.auth.username!)) {
-                        const token = await this.authenticatePAT(this.config.auth.username!);
-                        // get expiration date from token
-                        const decoded = jwtDecode<{ exp: number }>(token);
-                        const expirationDate = new Date(decoded.exp * 1000);
-                        this.tokens.set(this.config.auth.username!, { token, expirationDate });
-                        return token;
+                    const username = this.config.auth.username!;
+                    const cached = this.tokens.get(username);
+                    if (cached && cached.expirationDate >= new Date()) {
+                        return cached.token;
                     }
-                    const token = this.tokens.get(this.config.auth.username!)!;
-                    if (token.expirationDate < new Date()) {
-                        // invalidate token
-                        this.tokens.delete(this.config.auth.username!);
-                        return this.authenticate();
+                    // Token missing or expired: evict stale entry and use singleflight
+                    // to prevent concurrent requests from each triggering a separate
+                    // PAT exchange against Docker Hub.
+                    if (cached) {
+                        this.tokens.delete(username);
                     }
-                    return token.token;
+                    let inflight = this.authInFlight.get(username);
+                    if (!inflight) {
+                        inflight = this.authenticatePAT(username)
+                            .then((rawToken) => {
+                                const decoded = jwtDecode<{ exp: number }>(rawToken);
+                                const expirationDate = new Date(decoded.exp * 1000);
+                                this.tokens.set(username, { token: rawToken, expirationDate });
+                                return rawToken;
+                            })
+                            .finally(() => this.authInFlight.delete(username));
+                        this.authInFlight.set(username, inflight);
+                    }
+                    return inflight;
                 }
                 default:
                     throw new Error(`Unsupported auth type: ${this.config.auth.type}`);
