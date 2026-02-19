@@ -98,7 +98,7 @@ export class HubMCPServer {
                 break;
             case STREAMABLE_HTTP_OPTION: {
                 const app = express();
-                app.use(express.json());
+                app.use(express.json({ limit: '1mb' }));
                 this.registerRoutes(app);
                 app.listen(port, () => {
                     logger.info(`mcp server listening on port ${port}`);

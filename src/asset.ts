@@ -19,6 +19,8 @@ import { logger } from './logger';
 import { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp';
 import { jwtDecode } from 'jwt-decode';
 
+const FETCH_TIMEOUT_MS = 30_000;
+
 export type AssetConfig = {
     name: string;
     host: string;
@@ -38,9 +40,11 @@ export type AssetResponse<T> = {
 export class Asset implements Asset {
     protected tools: Map<string, RegisteredTool>;
     protected tokens: Map<string, { token: string; expirationDate: Date }>;
+    private readonly authInFlight: Map<string, Promise<string>>;
     constructor(protected config: AssetConfig) {
         this.tokens = new Map();
         this.tools = new Map();
+        this.authInFlight = new Map();
     }
     RegisterTools(): void {
         throw new Error('Method not implemented.');
@@ -59,13 +63,25 @@ export class Asset implements Asset {
         if (token) {
             (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
         }
-        const response = await fetch(url, { ...options, headers });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+        const response = await fetch(url, { ...options, headers, signal: controller.signal }).finally(
+            () => clearTimeout(timeoutId)
+        );
         const responseText = await response.text();
         if (!response.ok) {
             // try to get the error message from the response
+            const sanitizedOptions = {
+                ...options,
+                headers: Object.fromEntries(
+                    Object.entries((options.headers || {}) as Record<string, string>).map(
+                        ([k, v]) => [k, k.toLowerCase() === 'authorization' ? '[REDACTED]' : v]
+                    )
+                ),
+            };
             logger.error(
                 `HTTP error on '${url}' with request: ${JSON.stringify(
-                    options
+                    sanitizedOptions
                 )}\n status: ${response.status} ${response.statusText}\n error: ${responseText}`
             );
 
@@ -158,7 +174,7 @@ export class Asset implements Asset {
     protected async authenticate(): Promise<string> {
         // Add authentication
         if (this.config.auth) {
-            console.error(`Authenticating with ${this.config.auth.type}`);
+            logger.debug(`Authenticating with ${this.config.auth.type}`);
             switch (this.config.auth.type) {
                 case 'bearer':
                     if (this.config.auth.token) {
@@ -174,21 +190,30 @@ export class Asset implements Asset {
                         });
                         return '';
                     }
-                    if (!this.tokens.get(this.config.auth.username!)) {
-                        const token = await this.authenticatePAT(this.config.auth.username!);
-                        // get expiration date from token
-                        const decoded = jwtDecode<{ exp: number }>(token);
-                        const expirationDate = new Date(decoded.exp * 1000);
-                        this.tokens.set(this.config.auth.username!, { token, expirationDate });
-                        return token;
+                    const username = this.config.auth.username!;
+                    const cached = this.tokens.get(username);
+                    if (cached && cached.expirationDate >= new Date()) {
+                        return cached.token;
                     }
-                    const token = this.tokens.get(this.config.auth.username!)!;
-                    if (token.expirationDate < new Date()) {
-                        // invalidate token
-                        this.tokens.delete(this.config.auth.username!);
-                        return this.authenticate();
+                    // Token missing or expired: evict stale entry and use singleflight
+                    // to prevent concurrent requests from each triggering a separate
+                    // PAT exchange against Docker Hub.
+                    if (cached) {
+                        this.tokens.delete(username);
                     }
-                    return token.token;
+                    let inflight = this.authInFlight.get(username);
+                    if (!inflight) {
+                        inflight = this.authenticatePAT(username)
+                            .then((rawToken) => {
+                                const decoded = jwtDecode<{ exp: number }>(rawToken);
+                                const expirationDate = new Date(decoded.exp * 1000);
+                                this.tokens.set(username, { token: rawToken, expirationDate });
+                                return rawToken;
+                            })
+                            .finally(() => this.authInFlight.delete(username));
+                        this.authInFlight.set(username, inflight);
+                    }
+                    return inflight;
                 }
                 default:
                     throw new Error(`Unsupported auth type: ${this.config.auth.type}`);
@@ -201,8 +226,10 @@ export class Asset implements Asset {
         if (!username) {
             throw new Error('PAT auth: Username is empty');
         }
-        console.error(`Authenticating PAT for ${username}`);
+        logger.debug(`Authenticating PAT for ${username}`);
         const url = `https://hub.docker.com/v2/users/login`;
+        const patController = new AbortController();
+        const patTimeoutId = setTimeout(() => patController.abort(), FETCH_TIMEOUT_MS);
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -210,7 +237,8 @@ export class Asset implements Asset {
                 username: username,
                 password: this.config.auth?.token,
             }),
-        });
+            signal: patController.signal,
+        }).finally(() => clearTimeout(patTimeoutId));
         if (!response.ok) {
             throw new Error(
                 `Failed to authenticate PAT for ${username}: ${response.status} ${response.statusText}`
