@@ -7,7 +7,7 @@
 # Access from Windows:  \\192.168.20.20\projects
 # Access from Linux:    mount -t cifs //192.168.20.20/projects /mnt/projects -o user=smbuser
 #
-# Usage: sudo bash setup-samba.sh [SHARE_USER] [SHARE_DIR]
+# Usage (run as root on pve): bash setup-samba.sh [SHARE_USER] [SHARE_DIR]
 
 set -euo pipefail
 

@@ -3,7 +3,7 @@
 # Creates commonly needed storage pools: local-lvm for VMs, and optionally
 # a ZFS pool or NFS mount for ISOs and backups.
 #
-# Usage: sudo bash setup-storage.sh
+# Usage (run as root on pve): bash setup-storage.sh
 
 set -euo pipefail
 

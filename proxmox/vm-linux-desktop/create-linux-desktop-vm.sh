@@ -4,7 +4,7 @@
 # Creates a lightweight Linux Desktop VM accessible via SPICE from the
 # ThinkPad (192.168.16.10) or any machine on the network.
 #
-# Usage: sudo bash create-linux-desktop-vm.sh [VMID] [VM_NAME] [CLOUD_IMG_URL]
+# Usage (run as root on pve): bash create-linux-desktop-vm.sh [VMID] [VM_NAME] [CLOUD_IMG_URL]
 
 set -euo pipefail
 

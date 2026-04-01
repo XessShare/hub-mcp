@@ -2,8 +2,9 @@
 # setup-fail2ban.sh — Install and configure Fail2Ban for Proxmox
 # Protects SSH and the Proxmox Web GUI against brute-force attacks.
 #
-# Usage: sudo bash setup-fail2ban.sh [MAX_RETRY] [BAN_TIME]
-# Example: sudo bash setup-fail2ban.sh 3 3600
+# Usage (run as root on pve):
+#   bash setup-fail2ban.sh [MAX_RETRY] [BAN_TIME]
+# Example: bash setup-fail2ban.sh 3 3600
 
 set -euo pipefail
 

@@ -2,6 +2,11 @@
 
 Complete infrastructure-as-code for a 2-host Proxmox cluster with GPU passthrough, VM management, remote access, and file sharing.
 
+> **Related documentation:**
+> - [Infrastructure Analysis](infrastructure-analysis.md) — Full maturity assessment, risk register, strategic roadmap
+> - [Security & Compliance](security-compliance.md) — Zero Trust gaps, DSGVO/AI Act requirements, encryption plan
+> - [90-Day Tactical Plan](roadmap-90day.md) — Prioritized action items for pilot-customer readiness
+
 ## Network Topology
 
 ```

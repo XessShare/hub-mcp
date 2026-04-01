@@ -2,7 +2,7 @@
 # create-cloud-init-template.sh — Download a cloud image and create a
 # Cloud-Init-enabled VM template on Proxmox VE.
 #
-# Usage: sudo bash create-cloud-init-template.sh [VMID] [TEMPLATE_NAME] [IMAGE_URL]
+# Usage (run as root on pve): bash create-cloud-init-template.sh [VMID] [TEMPLATE_NAME] [IMAGE_URL]
 #
 # Defaults to Ubuntu 22.04 (Jammy) cloud image.
 

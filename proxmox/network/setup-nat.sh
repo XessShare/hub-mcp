@@ -9,7 +9,7 @@
 #   ThinkPad:  192.168.16.10
 #   VM-Netz:   192.168.20.0/24 (vmbr1)
 #
-# Usage: sudo bash setup-nat.sh [WAN_IFACE] [INTERNAL_BRIDGE] [INTERNAL_SUBNET]
+# Usage (run as root on pve): bash setup-nat.sh [WAN_IFACE] [INTERNAL_BRIDGE] [INTERNAL_SUBNET]
 
 set -euo pipefail
 

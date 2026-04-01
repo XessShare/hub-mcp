@@ -2,7 +2,7 @@
 # vzdump-backup.sh — Backup all VMs and containers using vzdump
 # Designed to be called from a cronjob.
 #
-# Usage: sudo bash vzdump-backup.sh [STORAGE] [MODE] [MAX_BACKUPS]
+# Usage (run as root on pve): bash vzdump-backup.sh [STORAGE] [MODE] [MAX_BACKUPS]
 #
 # MODE: snapshot (default, no downtime), suspend, or stop
 # MAX_BACKUPS: number of backups to keep per VM (prune older ones)

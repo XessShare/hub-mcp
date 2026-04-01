@@ -4,8 +4,9 @@
 # - Disables password authentication globally
 # - Optionally changes the SSH port
 #
-# Usage: sudo bash harden-ssh.sh [NEW_PORT]
-# Example: sudo bash harden-ssh.sh 2222
+# Usage (run as root on pve):
+#   bash harden-ssh.sh [NEW_PORT]
+# Example: bash harden-ssh.sh 2222
 
 set -euo pipefail
 
